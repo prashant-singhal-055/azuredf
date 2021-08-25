@@ -13,6 +13,12 @@
 		},
 		"AzureDataLakeStoragelink_properties_typeProperties_url": {
 			"value": "https://trainingstorage055.dfs.core.windows.net"
+		},
+		"containerUri": {
+			"value": ""
+		},
+		"containerSasToken": {
+			"value": ""
 		}
 	}
 }
