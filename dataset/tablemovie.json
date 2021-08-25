@@ -1,0 +1,16 @@
+{
+	"name": "tablemovie",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "AzureSqlDatabaselink",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": "movie"
+		}
+	}
+}
