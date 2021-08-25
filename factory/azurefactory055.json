@@ -1,0 +1,9 @@
+{
+	"name": "azurefactory055",
+	"location": "centralindia",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "434c2fc2-aa19-4153-a098-dcced16366ac",
+		"tenantId": "3b004451-6f54-4952-a0bc-353b12bb766f"
+	}
+}
