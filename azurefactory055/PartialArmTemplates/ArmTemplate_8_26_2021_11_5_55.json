@@ -6,18 +6,6 @@
 			"type": "string",
 			"metadata": "Data Factory name",
 			"defaultValue": "azurefactory055"
-		},
-		"AzureDataLakeStoragelink_accountKey": {
-			"type": "secureString",
-			"metadata": "Secure string for 'accountKey' of 'AzureDataLakeStoragelink'"
-		},
-		"AzureSqlDatabaselink_connectionString": {
-			"type": "secureString",
-			"metadata": "Secure string for 'connectionString' of 'AzureSqlDatabaselink'"
-		},
-		"AzureDataLakeStoragelink_properties_typeProperties_url": {
-			"type": "string",
-			"defaultValue": "https://trainingstorage055.dfs.core.windows.net"
 		}
 	},
 	"variables": {
@@ -45,16 +33,8 @@
 						"typeProperties": {
 							"dataflow": {
 								"referenceName": "Movieratingtoparquet",
-								"type": "DataFlowReference",
-								"parameters": {},
-								"datasetParameters": {
-									"MoviesCSV": {},
-									"RatingCSV": {},
-									"Movietoparquet": {},
-									"Ratingtoparquet": {}
-								}
+								"type": "DataFlowReference"
 							},
-							"staging": {},
 							"compute": {
 								"coreCount": 8,
 								"computeType": "General"
@@ -174,9 +154,7 @@
 					"table": "movie"
 				}
 			},
-			"dependsOn": [
-				"[concat(variables('factoryId'), '/linkedServices/AzureSqlDatabaselink')]"
-			]
+			"dependsOn": []
 		},
 		{
 			"name": "[concat(parameters('factoryName'), '/AzureDataLakeStoragelink')]",
@@ -186,24 +164,11 @@
 				"annotations": [],
 				"type": "AzureBlobFS",
 				"typeProperties": {
-					"url": "[parameters('AzureDataLakeStoragelink_properties_typeProperties_url')]",
+					"url": "https://trainingstorage055.dfs.core.windows.net",
 					"accountKey": {
 						"type": "SecureString",
-						"value": "[parameters('AzureDataLakeStoragelink_accountKey')]"
+						"value": "**********"
 					}
-				}
-			},
-			"dependsOn": []
-		},
-		{
-			"name": "[concat(parameters('factoryName'), '/AzureSqlDatabaselink')]",
-			"type": "Microsoft.DataFactory/factories/linkedServices",
-			"apiVersion": "2018-06-01",
-			"properties": {
-				"annotations": [],
-				"type": "AzureSqlDatabase",
-				"typeProperties": {
-					"connectionString": "[parameters('AzureSqlDatabaselink_connectionString')]"
 				}
 			},
 			"dependsOn": []
