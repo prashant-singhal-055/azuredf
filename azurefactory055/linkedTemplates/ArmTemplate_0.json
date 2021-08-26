@@ -55,6 +55,44 @@
 			"dependsOn": []
 		},
 		{
+			"name": "[concat(parameters('factoryName'), '/MovieParquetDS')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "AzureDataLakeStoragelink",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "movies",
+						"fileSystem": "analytics"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": [
+					{
+						"name": "movieId",
+						"type": "INT_16"
+					},
+					{
+						"name": "title",
+						"type": "UTF8"
+					},
+					{
+						"name": "genres",
+						"type": "UTF8"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStoragelink')]"
+			]
+		},
+		{
 			"name": "[concat(parameters('factoryName'), '/Moviedata')]",
 			"type": "Microsoft.DataFactory/factories/datasets",
 			"apiVersion": "2018-06-01",
@@ -89,6 +127,48 @@
 					{
 						"name": "genres",
 						"type": "String"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStoragelink')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/RatingParquetDS')]",
+			"type": "Microsoft.DataFactory/factories/datasets",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "AzureDataLakeStoragelink",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "Parquet",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "ratings",
+						"fileSystem": "analytics"
+					},
+					"compressionCodec": "snappy"
+				},
+				"schema": [
+					{
+						"name": "userId",
+						"type": "INT_16"
+					},
+					{
+						"name": "movieId",
+						"type": "INT32"
+					},
+					{
+						"name": "rating",
+						"type": "DOUBLE"
+					},
+					{
+						"name": "timestamp",
+						"type": "INT32"
 					}
 				]
 			},
@@ -161,6 +241,73 @@
 			},
 			"dependsOn": [
 				"[concat(variables('factoryId'), '/linkedServices/AzureSqlDatabaselink')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('factoryName'), '/MovieRatingJoin')]",
+			"type": "Microsoft.DataFactory/factories/dataflows",
+			"apiVersion": "2018-06-01",
+			"properties": {
+				"type": "MappingDataFlow",
+				"typeProperties": {
+					"sources": [
+						{
+							"dataset": {
+								"referenceName": "MovieParquetDS",
+								"type": "DatasetReference"
+							},
+							"name": "MovieParDS"
+						},
+						{
+							"dataset": {
+								"referenceName": "RatingParquetDS",
+								"type": "DatasetReference"
+							},
+							"name": "RatingParDS"
+						}
+					],
+					"sinks": [
+						{
+							"linkedService": {
+								"referenceName": "AzureDataLakeStoragelink",
+								"type": "LinkedServiceReference"
+							},
+							"name": "MovieRatingJoin"
+						}
+					],
+					"transformations": [
+						{
+							"name": "DropGenres"
+						},
+						{
+							"name": "DropTimeStamp"
+						},
+						{
+							"name": "RatingGTE1"
+						},
+						{
+							"name": "JoinMovieRating"
+						},
+						{
+							"name": "SorByRating"
+						},
+						{
+							"name": "DropRatingMovieID"
+						},
+						{
+							"name": "AggAvgRatingCountUserID"
+						},
+						{
+							"name": "RenameAgg"
+						}
+					],
+					"script": "source(output(\n\t\tmovieId as short,\n\t\ttitle as string,\n\t\tgenres as string\n\t),\n\tallowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'parquet') ~> MovieParDS\nsource(output(\n\t\tuserId as short,\n\t\tmovieId as integer,\n\t\trating as double,\n\t\ttimestamp as integer\n\t),\n\tallowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'parquet') ~> RatingParDS\nMovieParDS select(mapColumn(\n\t\tmovieId,\n\t\ttitle\n\t),\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> DropGenres\nRatingParDS select(mapColumn(\n\t\tuserId,\n\t\tmovieId,\n\t\trating\n\t),\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> DropTimeStamp\nDropTimeStamp filter(rating>=1.0) ~> RatingGTE1\nDropGenres, RenameAgg join(DropGenres@movieId == RenameAgg@movieId,\n\tjoinType:'inner',\n\tbroadcast: 'auto')~> JoinMovieRating\nJoinMovieRating sort(desc(avg_rating, true)) ~> SorByRating\nSorByRating select(mapColumn(\n\t\tmovieId = DropGenres@movieId,\n\t\ttitle,\n\t\tavg_rating,\n\t\ttotal_userId\n\t),\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> DropRatingMovieID\nRatingGTE1 aggregate(groupBy(movieId),\n\trating = avg(toDouble(rating)),\n\t\tuserId = count(userId)) ~> AggAvgRatingCountUserID\nAggAvgRatingCountUserID select(mapColumn(\n\t\tmovieId,\n\t\tavg_rating = rating,\n\t\ttotal_userId = userId\n\t),\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> RenameAgg\nDropRatingMovieID sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'parquet',\n\tfileSystem: 'analytics',\n\tfolderPath: 'popular-movies',\n\ttruncate: true,\n\tcompressionCodec: 'snappy',\n\tumask: 0022,\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> MovieRatingJoin"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('factoryId'), '/datasets/MovieParquetDS')]",
+				"[concat(variables('factoryId'), '/datasets/RatingParquetDS')]",
+				"[concat(variables('factoryId'), '/linkedServices/AzureDataLakeStoragelink')]"
 			]
 		},
 		{
@@ -256,12 +403,51 @@
 							},
 							"traceLevel": "Fine"
 						}
+					},
+					{
+						"name": "MovieRatingJoin",
+						"type": "ExecuteDataFlow",
+						"dependsOn": [
+							{
+								"activity": "MovieRatingToParquet",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "1.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"dataflow": {
+								"referenceName": "MovieRatingJoin",
+								"type": "DataFlowReference",
+								"parameters": {},
+								"datasetParameters": {
+									"MovieParDS": {},
+									"RatingParDS": {},
+									"MovieRatingJoin": {}
+								}
+							},
+							"staging": {},
+							"compute": {
+								"coreCount": 8,
+								"computeType": "General"
+							},
+							"traceLevel": "Fine"
+						}
 					}
 				],
 				"annotations": []
 			},
 			"dependsOn": [
-				"[concat(variables('factoryId'), '/dataflows/Movieratingtoparquet')]"
+				"[concat(variables('factoryId'), '/dataflows/Movieratingtoparquet')]",
+				"[concat(variables('factoryId'), '/dataflows/MovieRatingJoin')]"
 			]
 		}
 	]
