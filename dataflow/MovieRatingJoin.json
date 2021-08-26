@@ -1,0 +1,60 @@
+{
+	"name": "MovieRatingJoin",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "MovieParquetDS",
+						"type": "DatasetReference"
+					},
+					"name": "MovieParDS"
+				},
+				{
+					"dataset": {
+						"referenceName": "RatingParquetDS",
+						"type": "DatasetReference"
+					},
+					"name": "RatingParDS"
+				}
+			],
+			"sinks": [
+				{
+					"linkedService": {
+						"referenceName": "AzureDataLakeStoragelink",
+						"type": "LinkedServiceReference"
+					},
+					"name": "MovieRatingJoin"
+				}
+			],
+			"transformations": [
+				{
+					"name": "DropGenres"
+				},
+				{
+					"name": "DropTimeStamp"
+				},
+				{
+					"name": "RatingGTE1"
+				},
+				{
+					"name": "JoinMovieRating"
+				},
+				{
+					"name": "SorByRating"
+				},
+				{
+					"name": "DropRatingMovieID"
+				},
+				{
+					"name": "AggAvgRatingCountUserID"
+				},
+				{
+					"name": "RenameAgg"
+				}
+			],
+			"script": "source(output(\n\t\tmovieId as short,\n\t\ttitle as string,\n\t\tgenres as string\n\t),\n\tallowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'parquet') ~> MovieParDS\nsource(output(\n\t\tuserId as short,\n\t\tmovieId as integer,\n\t\trating as double,\n\t\ttimestamp as integer\n\t),\n\tallowSchemaDrift: true,\n\tvalidateSchema: false,\n\tignoreNoFilesFound: false,\n\tformat: 'parquet') ~> RatingParDS\nMovieParDS select(mapColumn(\n\t\tmovieId,\n\t\ttitle\n\t),\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> DropGenres\nRatingParDS select(mapColumn(\n\t\tuserId,\n\t\tmovieId,\n\t\trating\n\t),\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> DropTimeStamp\nDropTimeStamp filter(rating>=1.0) ~> RatingGTE1\nDropGenres, RenameAgg join(DropGenres@movieId == RenameAgg@movieId,\n\tjoinType:'inner',\n\tbroadcast: 'auto')~> JoinMovieRating\nJoinMovieRating sort(desc(avg_rating, true)) ~> SorByRating\nSorByRating select(mapColumn(\n\t\tmovieId = DropGenres@movieId,\n\t\ttitle,\n\t\tavg_rating,\n\t\ttotal_userId\n\t),\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> DropRatingMovieID\nRatingGTE1 aggregate(groupBy(movieId),\n\trating = avg(toDouble(rating)),\n\t\tuserId = count(userId)) ~> AggAvgRatingCountUserID\nAggAvgRatingCountUserID select(mapColumn(\n\t\tmovieId,\n\t\tavg_rating = rating,\n\t\ttotal_userId = userId\n\t),\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> RenameAgg\nDropRatingMovieID sink(allowSchemaDrift: true,\n\tvalidateSchema: false,\n\tformat: 'parquet',\n\tumask: 0022,\n\tskipDuplicateMapInputs: true,\n\tskipDuplicateMapOutputs: true) ~> MovieRatingJoin"
+		}
+	}
+}
