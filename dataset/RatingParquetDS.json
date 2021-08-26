@@ -1,0 +1,37 @@
+{
+	"name": "RatingParquetDS",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "AzureDataLakeStoragelink",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "Parquet",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": "ratings",
+				"fileSystem": "analytics"
+			},
+			"compressionCodec": "snappy"
+		},
+		"schema": [
+			{
+				"name": "userId",
+				"type": "INT_16"
+			},
+			{
+				"name": "movieId",
+				"type": "INT32"
+			},
+			{
+				"name": "rating",
+				"type": "DOUBLE"
+			},
+			{
+				"name": "timestamp",
+				"type": "INT32"
+			}
+		]
+	}
+}
